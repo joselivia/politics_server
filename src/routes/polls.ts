@@ -30,8 +30,8 @@ const ward = req.body.ward || null;
     await client.query("BEGIN");
 
 const pollResult = await client.query(
-  `INSERT INTO polls (title, category, presidential, region, county, constituency, ward, created_at, total_votes)
-   VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), 0) RETURNING id`,
+  `INSERT INTO polls (title, category,region, county, constituency, ward, created_at, total_votes)
+   VALUES ($1, $2, $3, $4, $5, $6,$7, 0) RETURNING id`,
   [title, category, presidential, region, county, constituency, ward]
 );
     const pollId = pollResult.rows[0].id;
@@ -97,7 +97,7 @@ router.get("/:id", async (req, res) => {
 
     // Fetch poll data
     const pollResult = await client.query(
-      `SELECT id, title, category, presidential, region, county, constituency, ward, spoiled_votes, total_votes, created_at
+      `SELECT id, title, category, region, county, constituency, ward, spoiled_votes, total_votes, created_at
        FROM polls WHERE id = $1`,
       [pollId]
     );
@@ -172,7 +172,6 @@ return res.json({
   id: poll.id,
   title: poll.title,
   category: poll.category,
-  presidential: poll.presidential,
   region: poll.region,
   county: poll.county,
   constituency: poll.constituency,
