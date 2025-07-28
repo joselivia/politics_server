@@ -31,8 +31,8 @@ const ward = req.body.ward || null;
 
 const pollResult = await client.query(
   `INSERT INTO polls (title, category,region, county, constituency, ward, created_at, total_votes)
-   VALUES ($1, $2, $3, $4, $5, $6,$7, 0) RETURNING id`,
-  [title, category, presidential, region, county, constituency, ward]
+    VALUES ($1, $2, $3, $4, $5, $6, NOW(), 0) RETURNING id`,
+  [title, category, region, county, constituency, ward]
 );
     const pollId = pollResult.rows[0].id;
     for (let i = 0; i < competitors.length; i++) {
@@ -64,7 +64,7 @@ router.get("/", async (req, res) => {
 
     if (category) {
       result = await pool.query(
-        `SELECT id, title, created_at AS "lastUpdated", category
+        `SELECT id, title, created_at, category
          FROM polls
          WHERE category = $1
          ORDER BY created_at DESC`,
@@ -72,7 +72,7 @@ router.get("/", async (req, res) => {
       );
     } else {
       result = await pool.query(
-        `SELECT id, title, created_at AS "lastUpdated", category
+        `SELECT id, title, created_at, category
          FROM polls
          ORDER BY created_at DESC`
       );
