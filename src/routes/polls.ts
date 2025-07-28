@@ -2,7 +2,6 @@ import express from "express";
 import multer from "multer";
 import { pool } from "../config-db";
 import { PoolClient } from "pg";
-
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -13,10 +12,10 @@ router.post("/", upload.any(), async (req, res) => {
     presidential,
     region,
     county,
-    constituency,
-    ward,
-    competitors: competitorsJson,
+   competitors: competitorsJson,
   } = req.body;
+const constituency = req.body.constituency || null;
+const ward = req.body.ward || null;
 
   if (!title || !category || !region) {
     return res.status(400).json({ message: "Missing required fields for poll creation." });
@@ -35,7 +34,6 @@ const pollResult = await client.query(
    VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), 0) RETURNING id`,
   [title, category, presidential, region, county, constituency, ward]
 );
-
     const pollId = pollResult.rows[0].id;
     for (let i = 0; i < competitors.length; i++) {
       const { name, party } = competitors[i];
