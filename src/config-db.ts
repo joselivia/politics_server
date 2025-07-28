@@ -20,11 +20,10 @@ const createTables = async () => {
   id SERIAL PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
   category VARCHAR(100) NOT NULL,
-  presidential VARCHAR(100),
   region VARCHAR(100) NOT NULL,
   county VARCHAR(100) NOT NULL,
-  constituency VARCHAR(100) NOT NULL,
-  ward VARCHAR(100) NOT NULL,
+  constituency VARCHAR(100) ,
+  ward VARCHAR(100) ,
   total_votes INTEGER DEFAULT 0,
   spoiled_votes INTEGER DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
