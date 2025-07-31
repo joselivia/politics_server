@@ -37,23 +37,13 @@ const createTables = async () => {
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 `,
-
-//     `CREATE TABLE IF NOT EXISTS poll_questions (
-//       id SERIAL PRIMARY KEY,
-//       poll_id INT REFERENCES polls(id) ON DELETE CASCADE,
-//       type TEXT NOT NULL,
-//       is_competitor_question BOOLEAN DEFAULT false,
-//       question_text TEXT NOT NULL
-//     );`,
-
   `CREATE TABLE IF NOT EXISTS votes (
   id SERIAL PRIMARY KEY,
   poll_id INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
   competitor_id INTEGER NOT NULL REFERENCES competitors(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
-`,
- 
+`, 
   `CREATE TABLE IF NOT EXISTS blog_posts (
   id SERIAL PRIMARY KEY,
   title TEXT NOT NULL,

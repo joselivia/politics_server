@@ -9,7 +9,6 @@ router.post("/", upload.any(), async (req, res) => {
   const {
     title,
     category,
-    presidential,
     region,
     county,
    competitors: competitorsJson,
@@ -64,7 +63,7 @@ router.get("/", async (req, res) => {
 
     if (category) {
       result = await pool.query(
-        `SELECT id, title, created_at, category
+        `SELECT id, title, created_at, category, region, county, constituency, ward
          FROM polls
          WHERE category = $1
          ORDER BY created_at DESC`,
@@ -72,7 +71,7 @@ router.get("/", async (req, res) => {
       );
     } else {
       result = await pool.query(
-        `SELECT id, title, created_at, category
+        `SELECT id, title, created_at, category, region, county, constituency, ward
          FROM polls
          ORDER BY created_at DESC`
       );
@@ -84,6 +83,7 @@ router.get("/", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 router.get("/:id", async (req, res) => {
   const pollId = parseInt(req.params.id);
@@ -167,7 +167,6 @@ const results = voteResults.rows.map((row) => {
   };
 });
 
-// Return even if there are no votes
 return res.json({
   id: poll.id,
   title: poll.title,
@@ -178,7 +177,7 @@ return res.json({
   ward: poll.ward,
   spoiled_votes: poll.spoiled_votes || 0,
   totalVotes: poll.total_votes || 0,
-  lastUpdated: new Date().toISOString(),
+  created_at: poll.created_at,
   results,
 });
 
