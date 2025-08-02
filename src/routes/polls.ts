@@ -7,14 +7,15 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 router.post("/", upload.any(), async (req, res) => {
   const {
-    title,
+      title,
     category,
     region,
     county,
+    constituency,
+    ward,
    competitors: competitorsJson,
   } = req.body;
-const constituency = req.body.constituency || null;
-const ward = req.body.ward || null;
+
 
   if (!title || !category || !region) {
     return res.status(400).json({ message: "Missing required fields for poll creation." });
@@ -29,9 +30,9 @@ const ward = req.body.ward || null;
     await client.query("BEGIN");
 
 const pollResult = await client.query(
-  `INSERT INTO polls (title, category,region, county, constituency, ward, created_at, total_votes)
+  `INSERT INTO polls (title, category,region, county, constituency, ward, created_at,total_votes)
     VALUES ($1, $2, $3, $4, $5, $6, NOW(), 0) RETURNING id`,
-  [title, category, region, county, constituency, ward]
+  [title, category, region, county, constituency || null, ward || null]
 );
     const pollId = pollResult.rows[0].id;
     for (let i = 0; i < competitors.length; i++) {

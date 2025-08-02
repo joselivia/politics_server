@@ -39,6 +39,7 @@ const createTables = async () => {
 `,
   `CREATE TABLE IF NOT EXISTS votes (
   id SERIAL PRIMARY KEY,
+  voter_id TEXT,
   poll_id INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
   competitor_id INTEGER NOT NULL REFERENCES competitors(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT NOW()
