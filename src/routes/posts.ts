@@ -5,7 +5,7 @@ import pool from '../config-db';
 const router = express.Router();
 const storage = multer.memoryStorage();
 const fileFilter = (_req: any, file: Express.Multer.File, cb: any) => {
-  const allowedTypes = /jpeg|jpg|png|gif|mp4|webm|avi|mov/;
+  const allowedTypes = /jpeg|jpg|png|gif|mp4|webm|avi|mov|pdf/;
   const isValid = allowedTypes.test(file.mimetype);
   cb(null, isValid);
 };
@@ -28,22 +28,24 @@ router.post('/posts', upload.array('media', 6), async (req, res) => {
     const { title, content } = req.body;
     const files = req.files as Express.Multer.File[];
 
-     const images: Buffer[] = [];
-    const videos: Buffer[] = [];
+ const images: Buffer[] = [];
+const videos: Buffer[] = [];
+const pdfs: Buffer[] = [];
 
-   files.forEach((file) => {
-      if (file.mimetype.startsWith('video/')) {
-        if (videos.length < 3) videos.push(file.buffer);
-      } else {
-        if (images.length < 3) images.push(file.buffer);
-      }
-    });
-
+files.forEach((file) => {
+  if (file.mimetype.startsWith('video/')) {
+    if (videos.length < 3) videos.push(file.buffer);
+  } else if (file.mimetype.startsWith('image/')) {
+    if (images.length < 3) images.push(file.buffer);
+  } else if (file.mimetype === 'application/pdf') {
+    if (pdfs.length < 3) pdfs.push(file.buffer);
+  }
+});
 
     await pool.query(
-      `INSERT INTO blog_posts (title, content, image_data, video_data, created_at)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [title, content, images, videos, new Date()]
+      `INSERT INTO blog_posts (title, content, image_data, video_data,pdf_data, created_at)
+       VALUES ($1, $2, $3, $4, $5,$6)`,
+      [title, content, images, videos,pdfs, new Date()]
     );
 
     res.status(200).json({ message: '✅ Post Successifully Created' });
@@ -92,6 +94,9 @@ router.get('/posts/:id', async (req, res) => {
     const videos = (post.video_data || []).map((vid: Buffer) =>
       `data:video/mp4;base64,${vid.toString('base64')}`
     );
+const pdfs = (post.pdf_data || []).map((pdf: Buffer) =>
+  `data:application/pdf;base64,${pdf.toString('base64')}`
+);
 
     res.json({
       id: post.id,
@@ -100,6 +105,7 @@ router.get('/posts/:id', async (req, res) => {
       created_at: post.created_at,
       images,
       videos,
+      pdfs,
     });
   } catch (error) {
     console.error("❌ Failed to fetch post details:", error);

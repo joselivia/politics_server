@@ -1,5 +1,6 @@
 import { Pool } from "pg";
 import dotenv from "dotenv";
+import { insertAdmin } from "./routes/admin";
 
 dotenv.config();
 export const pool = new Pool({
@@ -26,6 +27,7 @@ const createTables = async () => {
   ward VARCHAR(100) ,
   total_votes INTEGER DEFAULT 0,
   spoiled_votes INTEGER DEFAULT 0,
+  allow_multiple_votes BOOLEAN DEFAULT false,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );`,
 `CREATE TABLE IF NOT EXISTS competitors (
@@ -51,8 +53,14 @@ const createTables = async () => {
   content TEXT NOT NULL,
   image_data BYTEA[],
   video_data BYTEA[],
+  pdf_data bytea[],
   created_at TIMESTAMP DEFAULT NOW()
 );`,
+`CREATE TABLE IF NOT EXISTS login(
+id SERIAL PRIMARY KEY,
+email TEXT NOT NULL,
+password TEXT NOT NULL
+)`,
 
   ];
 
@@ -61,6 +69,7 @@ const createTables = async () => {
       await pool.query(query);
     }
     console.log("✅ All tables are created successfully!");
+    await insertAdmin();
   } catch (error: Error | any) {
     console.error("❌ Error creating tables:", error);
   }

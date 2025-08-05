@@ -2,10 +2,11 @@ import express from "express";
 import cors from "cors";
 import pollRoutes from "./routes/polls";
 import postRoutes from "./routes/posts";
-
 import pool from "./config-db";
 import dotenv from "dotenv";
 import voteRoutes from "./routes/votes";
+import login from "./routes/login";
+import updateAdmin from "./routes/update-admin";
 
 dotenv.config();
 
@@ -17,6 +18,8 @@ app.use(express.json());
 app.use("/api/polls", pollRoutes);
 app.use("/api", postRoutes); 
 app.use("/api/votes", voteRoutes);
+app.use("/login", login);
+app.use("/update-admin", updateAdmin);
 
 pool.query("SELECT NOW()", (err, res) => {
   if (err) {

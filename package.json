@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/joselivia/Water-POS-Server#readme",
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/multer": "^2.0.0",
@@ -29,6 +30,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.52.1",
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
