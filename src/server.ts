@@ -16,10 +16,10 @@ app.use(cors());
 app.use(express.json());
 
 app.use("/api/polls", pollRoutes);
-app.use("/api", postRoutes); 
+app.use("/api/blogs", postRoutes); 
 app.use("/api/votes", voteRoutes);
-app.use("/login", login);
-app.use("/update-admin", updateAdmin);
+app.use("/api/login", login);
+app.use("/api/update-admin", updateAdmin);
 
 pool.query("SELECT NOW()", (err, res) => {
   if (err) {
