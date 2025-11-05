@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 import voteRoutes from "./routes/votes";
 import login from "./routes/login";
 import updateAdmin from "./routes/update-admin";
-
+import countyMap from "./routes/maps"
 dotenv.config();
 
 const app = express();
@@ -19,6 +19,7 @@ app.use("/api/polls", pollRoutes);
 app.use("/api/blogs", postRoutes); 
 app.use("/api/votes", voteRoutes);
 app.use("/api/login", login);
+app.use("/api/county", countyMap);
 app.use("/api/update-admin", updateAdmin);
 
 pool.query("SELECT NOW()", (err, res) => {
