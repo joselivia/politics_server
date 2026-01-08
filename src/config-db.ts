@@ -3,16 +3,16 @@ import dotenv from "dotenv";
 import { insertAdmin } from "./routes/admin";
 
 dotenv.config();
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
 // export const pool = new Pool({
-//   user: "postgres",
-//   password: "@Joselivia254",
-//   host: "localhost",
-//   port: 5432,
-//   database: "politics",
+//   connectionString: process.env.DATABASE_URL,
 // });
+export const pool = new Pool({
+  user: "postgres",
+  password: "@Joselivia254",
+  host: "localhost",
+  port: 5432,
+  database: "politics",
+});
 
 const createTables = async () => {
   const queries = [
@@ -26,7 +26,9 @@ const createTables = async () => {
   ward VARCHAR(100) ,
   total_votes INTEGER DEFAULT 0,
   spoiled_votes INTEGER DEFAULT 0,
+   voting_expires_at TIMESTAMP,
   allow_multiple_votes BOOLEAN DEFAULT false,
+   published BOOLEAN DEFAULT false,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );`,
 `CREATE TABLE IF NOT EXISTS competitors (
