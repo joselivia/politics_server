@@ -321,16 +321,14 @@ router.put("/:id", upload.any(), async (req, res) => {
     );
     const existing = existingRes.rows;
     const existingIds = existing.map(c => c.id);
-
     const keptIds: number[] = [];
-
     // 3️⃣ Upsert competitors
     for (const comp of competitors) {
-      const { id, tempId, name, party } = comp;
+      const { id, name, party } = comp;
       if (!name?.trim()) throw new Error("Competitor name required");
 
       const file = files.find(
-        (f: any) => f.fieldname === `profile_${id ?? tempId}`
+        (f: any) => f.fieldname === `profile_image${id}`
       );
 
       if (Number.isInteger(id)) {
@@ -362,8 +360,6 @@ router.put("/:id", upload.any(), async (req, res) => {
         keptIds.push(insertRes.rows[0].id);
       }
     }
-
-    // 4️⃣ Delete removed competitors (ONCE)
     const toDelete = existingIds.filter(id => !keptIds.includes(id));
     if (toDelete.length > 0) {
       await client.query(
