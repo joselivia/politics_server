@@ -5,8 +5,8 @@ router.get("/:countyName", async (req, res) => {
   const { countyName } = req.params;
   try {
     const result = await pool.query(
-      "SELECT id FROM polls WHERE region ILIKE $1 LIMIT 1",
-      [countyName]
+      "SELECT id FROM polls WHERE county ILIKE $1 LIMIT 1",
+      [`%${countyName}%`]
     );
     if (result.rows.length > 0) {
       res.json({ pollId: result.rows[0].id });

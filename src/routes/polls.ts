@@ -29,18 +29,13 @@ router.post("/", upload.any(), async (req, res) => {
       return res.status(400).json({ message: "Invalid voting_expires_at format." });
     }
   }
-
-  let client; 
   try {
     const competitors = JSON.parse(competitorsJson || "[]");
     if (!Array.isArray(competitors) || competitors.length < 1) {
       return res.status(400).json({ message: "At least one competitor is required." });
     }
-
-    client = await pool.connect();
-    await client.query("BEGIN"); 
-
-    const pollResult = await client.query(
+ 
+    const pollResult = await pool.query(
       `INSERT INTO polls (
         title, category, region, county, constituency, ward,
         created_at, total_votes, voting_expires_at
@@ -70,31 +65,20 @@ router.post("/", upload.any(), async (req, res) => {
       const file = filesArray.find((f: any) => f.fieldname === `profile${i}`);
       const profileImageBuffer = file?.buffer ?? null;
 
-      await client.query(
+      await pool.query(
         `INSERT INTO competitors (poll_id, name, party, profile_image)
          VALUES ($1, $2, $3, $4)`,
         [pollId, name, party || null, profileImageBuffer]
       );
     }
 
-    await client.query("COMMIT"); 
     return res.status(201).json({ success: true, id: pollId });
   } catch (error: any) {
-    if (client) {
-      try {
-        await client.query("ROLLBACK"); 
-      } catch (rollbackErr) {
-        console.error("Rollback failed:", rollbackErr);
-      }
-    }
-
-    console.error("Error creating poll:", error);
+       console.error("Error creating poll:", error);
     return res.status(500).json({
       message: error.message || "Server error during poll creation.",
     });
-  } finally {
-    if (client) client.release(); 
-  }
+  } 
 });
 
 
@@ -104,7 +88,7 @@ router.get("/", async (req, res) => {
     let result;
     if (category) {
       result = await pool.query(
-        `SELECT id, title, created_at, category, region, county, constituency, ward,voting_expires_at
+        `SELECT id, title, created_at, category, region, county, constituency,total_votes, ward,voting_expires_at
          FROM polls
          WHERE category = $1
          ORDER BY created_at DESC`,
@@ -112,7 +96,7 @@ router.get("/", async (req, res) => {
       );
     } else {
       result = await pool.query(
-        `SELECT id, title, created_at, category, region, county, constituency, ward,voting_expires_at
+        `SELECT id, title, created_at, category, region, county, constituency,total_votes, ward,voting_expires_at
          FROM polls
          ORDER BY created_at DESC`
       );
@@ -122,6 +106,56 @@ router.get("/", async (req, res) => {
   } catch (err) {
     console.error("Error fetching polls:", err);
     res.status(500).json({ message: "Server error" });
+  }
+});
+router.get("/live", async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      WITH vote_counts AS (
+        SELECT
+          p.id AS poll_id,
+          p.title,
+          p.category,
+          p.county,
+          p.voting_expires_at,
+          c.id AS candidate_id,
+          c.name AS candidate_name,
+          COUNT(v.id)::int AS votes
+        FROM polls p
+        JOIN competitors c ON c.poll_id = p.id
+        LEFT JOIN votes v ON v.competitor_id = c.id
+        WHERE p.voting_expires_at > NOW()
+        GROUP BY p.id, c.id
+      ),
+      ranked AS (
+        SELECT *,
+          SUM(votes) OVER (PARTITION BY poll_id) AS total_votes,
+          ROW_NUMBER() OVER (PARTITION BY poll_id ORDER BY votes DESC) AS rank
+        FROM vote_counts
+      )
+      SELECT
+        poll_id AS id,
+        title,
+        category,
+        county,
+        voting_expires_at,
+        total_votes,
+        json_agg(
+          json_build_object(
+            'id', candidate_id,
+            'name', candidate_name,
+            'voteCount', votes
+          )
+          ORDER BY votes DESC
+        ) FILTER (WHERE rank <= 2) AS top_candidates
+      FROM ranked
+      GROUP BY poll_id, title, category, county, voting_expires_at, total_votes
+      ORDER BY voting_expires_at ASC;
+    `);
+    res.json(rows);
+  } catch (err) {
+    console.error("Error fetching live polls:", err);
+    res.status(500).json({ message: "Failed to fetch live polls" });
   }
 });
 
@@ -221,8 +255,8 @@ const competitors = competitorsResult.rows.map((row: any) => {
 });
 
 router.put("/:id", upload.any(), async (req, res) => {
-  const pollId = parseInt(req.params.id);
-  if (isNaN(pollId)) {
+  const pollId = Number(req.params.id);
+  if (!Number.isInteger(pollId)) {
     return res.status(400).json({ message: "Invalid poll ID" });
   }
 
@@ -238,28 +272,36 @@ router.put("/:id", upload.any(), async (req, res) => {
   } = req.body;
 
   let expiry: Date | null = null;
-  if (voting_expires_at && voting_expires_at.trim() !== "") {
+  if (voting_expires_at?.trim()) {
     expiry = new Date(voting_expires_at);
     if (isNaN(expiry.getTime())) {
-      return res.status(400).json({ message: "Invalid voting_expires_at format." });
+      return res.status(400).json({ message: "Invalid expiry date" });
     }
   }
 
+  let competitors: any[] = [];
   try {
-    const competitors = JSON.parse(competitorsJson || "[]");
-    if (!Array.isArray(competitors) || competitors.length < 1) {
-      return res.status(400).json({ message: "At least one competitor is required." });
-    }
+    competitors = JSON.parse(competitorsJson || "[]");
+  } catch {
+    return res.status(400).json({ message: "Invalid competitors payload" });
+  }
 
-    await pool.connect();
-    await pool.query("BEGIN");
+  if (!Array.isArray(competitors) || competitors.length === 0) {
+    return res.status(400).json({ message: "At least one competitor required" });
+  }
 
-    // Step 1: Update the main poll (safe, no impact on votes)
-    await pool.query(
+  const files = Array.isArray(req.files) ? req.files : [];
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // 1️⃣ Update poll
+    await client.query(
       `UPDATE polls
-       SET title = $1, category = $2, region = $3, county = $4, 
-           constituency = $5, ward = $6, voting_expires_at = $7
-       WHERE id = $8`,
+       SET title=$1, category=$2, region=$3, county=$4,
+           constituency=$5, ward=$6, voting_expires_at=$7
+       WHERE id=$8`,
       [
         title,
         category,
@@ -272,89 +314,75 @@ router.put("/:id", upload.any(), async (req, res) => {
       ]
     );
 
-    // Step 2: Get current competitors for reference
-    const existingCompetitorsRes = await pool.query(
-      `SELECT id, name FROM competitors WHERE poll_id = $1 ORDER BY id`,
+    // 2️⃣ Fetch existing competitors
+    const existingRes = await client.query(
+      `SELECT id, profile_image FROM competitors WHERE poll_id=$1`,
       [pollId]
     );
-    const existingCompetitors = existingCompetitorsRes.rows;
+    const existing = existingRes.rows;
+    const existingIds = existing.map(c => c.id);
 
-    const filesArray = Array.isArray(req.files) ? req.files : [];
+    const keptIds: number[] = [];
 
-    // Step 3: Update or insert competitors one by one, preserving IDs where possible
-    for (let i = 0; i < competitors.length; i++) {
-      const { id: providedId, name, party } = competitors[i];
+    // 3️⃣ Upsert competitors
+    for (const comp of competitors) {
+      const { id, tempId, name, party } = comp;
+      if (!name?.trim()) throw new Error("Competitor name required");
 
-      if (!name?.trim()) {
-        throw new Error(`Competitor ${i + 1} is missing a name.`);
-      }
+      const file = files.find(
+        (f: any) => f.fieldname === `profile_${id ?? tempId}`
+      );
 
-      const file = filesArray.find((f: any) => f.fieldname === `profile${i}`);
-      let profileImageBuffer: Buffer | null = null;
+      if (Number.isInteger(id)) {
+        // UPDATE
+        const old = existing.find(e => e.id === id);
+        if (!old) throw new Error(`Invalid competitor id ${id}`);
 
-      // Case 1: This competitor has an existing ID → UPDATE it
-      if (providedId && !isNaN(parseInt(providedId as any))) {
-        const compId = parseInt(providedId as any);
-
-        // Verify it belongs to this poll
-        const exists = existingCompetitors.some((c: any) => c.id === compId);
-        if (!exists) {
-          throw new Error(`Competitor ID ${compId} does not belong to this poll.`);
-        }
-
-        if (file) {
-          profileImageBuffer = file.buffer;
-        } else {
-          // Keep existing image if no new file
-          const oldImg = await pool.query(
-            `SELECT profile_image FROM competitors WHERE id = $1`,
-            [compId]
-          );
-          profileImageBuffer = oldImg.rows[0]?.profile_image || null;
-        }
-
-        await pool.query(
+        await client.query(
           `UPDATE competitors
-           SET name = $1, party = $2, profile_image = $3
-           WHERE id = $4 AND poll_id = $5`,
-          [name.trim(), party?.trim() || null, profileImageBuffer, compId, pollId]
+           SET name=$1, party=$2, profile_image=$3
+           WHERE id=$4 AND poll_id=$5`,
+          [
+            name.trim(),
+            party || null,
+            file ? file.buffer : old.profile_image,
+            id,
+            pollId,
+          ]
         );
+        keptIds.push(id);
       } else {
-        // Case 2: New competitor → INSERT
-        if (file) {
-          profileImageBuffer = file.buffer;
-        }
-
-        await pool.query(
+        // INSERT
+        const insertRes = await client.query(
           `INSERT INTO competitors (poll_id, name, party, profile_image)
-           VALUES ($1, $2, $3, $4)`,
-          [pollId, name.trim(), party?.trim() || null, profileImageBuffer]
+           VALUES ($1,$2,$3,$4)
+           RETURNING id`,
+          [pollId, name.trim(), party || null, file?.buffer ?? null]
         );
+        keptIds.push(insertRes.rows[0].id);
       }
     }
-    const providedIds = competitors
-      .map((c: any) => c.id)
-      .filter((id: any) => id && !isNaN(parseInt(id)));
 
-    if (providedIds.length > 0) {
-      await pool.query(
-        `DELETE FROM competitors WHERE poll_id = $1 AND id NOT IN (${providedIds
-          .map((_: any, i: number) => `$${i + 2}`)
-          .join(", ")})`,
-        [pollId, ...providedIds]
+    // 4️⃣ Delete removed competitors (ONCE)
+    const toDelete = existingIds.filter(id => !keptIds.includes(id));
+    if (toDelete.length > 0) {
+      await client.query(
+        `DELETE FROM competitors WHERE poll_id=$1 AND id=ANY($2::int[])`,
+        [pollId, toDelete]
       );
     }
 
-    await pool.query("COMMIT");
-    return res.status(200).json({ message: "Poll updated successfully" });
+    await client.query("COMMIT");
+    res.json({ message: "Poll updated successfully" });
   } catch (err: any) {
-    if (pool) await pool.query("ROLLBACK");
-    console.error("Error updating poll:", err);
-    return res
-      .status(500)
-      .json({ message: err.message || "Server error during update" });
-  } 
+    await client.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ message: err.message });
+  } finally {
+    client.release();
+  }
 });
+
 router.delete("/:id", async (req, res) => {
   const pollId = parseInt(req.params.id);
   if (isNaN(pollId)) {
@@ -399,4 +427,7 @@ router.put("/:id/publish", async (req, res) => {
     res.status(500).json({ message: "Failed to update publish status" });
   }
 });
+
+
+
 export default router;
