@@ -323,14 +323,13 @@ router.put("/:id", upload.any(), async (req, res) => {
     const existingIds = existing.map(c => c.id);
     const keptIds: number[] = [];
     // 3️⃣ Upsert competitors
-    for (const comp of competitors) {
+    for (let index = 0; index < competitors.length; index++) {
+      const comp = competitors[index];
       const { id, name, party } = comp;
       if (!name?.trim()) throw new Error("Competitor name required");
-
       const file = files.find(
-        (f: any) => f.fieldname === `profile_image${id}`
+        (f: any) => f.fieldname === `profile${index}`
       );
-
       if (Number.isInteger(id)) {
         // UPDATE
         const old = existing.find(e => e.id === id);

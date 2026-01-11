@@ -1,9 +1,13 @@
 import express from "express";
 import { pool } from "../config-db";
-
+import rateLimit from "express-rate-limit";
 const router = express.Router();
-
-router.post("/", async (req, res) => {
+const voteLimiter = rateLimit({
+  windowMs: 1000,
+  max: 1,
+  message: "Too many requests from this IP, slow down.",
+});
+router.post("/", voteLimiter, async (req, res) => {
   const { id, competitorId,voter_id } = req.body;
 
   if (!id || !competitorId) {
