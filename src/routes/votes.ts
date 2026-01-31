@@ -108,4 +108,57 @@ router.patch("/:id/allow-multiple", async (req, res) => {
   }
 });
 
+
+router.post("/bulk", async (req, res) => {
+  const { pollId, competitorId, count } = req.body;
+
+  if (!pollId || !competitorId || !count || count <= 0) {
+    return res.status(400).json({ message: "Invalid bulk vote data" });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // Ensure competitor belongs to poll
+    const check = await client.query(
+      `SELECT 1 FROM competitors WHERE id = $1 AND poll_id = $2`,
+      [competitorId, pollId]
+    );
+
+    if (check.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ message: "Invalid competitor for this poll" });
+    }
+
+    await client.query(
+      `
+      INSERT INTO votes (poll_id, competitor_id, voter_id)
+      SELECT $1, $2, 'system_' || gen_random_uuid()
+      FROM generate_series(1, $3)
+      `,
+      [pollId, competitorId, count]
+    );
+
+    // Update poll total once
+    await client.query(
+      `UPDATE polls SET total_votes = total_votes + $1 WHERE id = $2`,
+      [count, pollId]
+    );
+
+    await client.query("COMMIT");
+
+    res.json({
+      message: `Successfully added ${count} votes`,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Bulk vote error:", err);
+    res.status(500).json({ message: "Failed to add bulk votes" });
+  } finally {
+    client.release();
+  }
+});
+
 export default router;
